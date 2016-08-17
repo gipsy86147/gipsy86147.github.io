@@ -1,8 +1,471 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<title>Gipsy</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+
+    <title>Bankchain Block Explorer</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+
+    <!-- Custom styles for this page -->
+    <style type="text/css">
+        body {
+            padding-top: 50px;
+            padding-bottom: 20px;
+        }
+    </style>
+
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
 </head>
-<body>
-<h1>Hi</h1>
+
+<body id="body">
+
+<div class="modal fade bs-example-modal-sm" tabindex="-1" role="dialog" aria-labelledby="mySmallModalLabel">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <form class="navbar-form">
+                <div class="form-group">
+                    <input type="text" placeholder="Api base" class="form-control" id="api_base">
+                </div>
+                <button type="button" class="btn btn-info"
+                        onclick="window.localStorage.setItem('api_base', $('#api_base').val())" data-dismiss="modal">Set
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar"
+                    aria-expanded="false" aria-controls="navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Bankchain Block Explorer</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+            <form class="navbar-form navbar-right">
+                <div class="form-group">
+                    <input type="text" placeholder="Block or transaction" class="form-control" id="key_hex">
+                </div>
+                <button type="button" class="btn btn-success"
+                        onclick="Block.getBlock($('#key_hex').val(), 'onBlock');
+                        Tx.getTx($('#key_hex').val(), 'onTx');
+                        Tx.getByAddress($('#key_hex').val(), 0, 'onTxs');
+
+                 ">
+                    Go
+                </button>
+                <button type="button" class="btn btn-primary" data-toggle="modal" data-target=".bs-example-modal-sm">
+                    Settings
+                </button>
+            </form>
+
+        </div><!--/.navbar-collapse -->
+    </div>
+</nav>
+
+<!-- Main jumbotron for a primary marketing message or call to action -->
+<div class="jumbotron" id="mainHead">
+    <div class="container" id="blkhead">
+        <h1>No Data</h1>
+        <p>Do you have anything in your coordinator database?</p>
+        <p>You are connecting to coordinator at
+            <button class="btn btn-link"><span id="api_base_span"></span></button>
+            Is this correct url? If not change it by clicking Settings button above and reload page.
+        </p>
+    </div>
+</div>
+<div class="container" id="detailSection">
+</div>
+
+<div class="container">
+    <footer>
+        <p>&copy; 2016 itBit</p>
+    </footer>
+</div> <!-- /container -->
+
+<!-- Bootstrap core JavaScript
+================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/2.2.1/mustache.min.js"></script>
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
+
+<script id="mainHeadtpl" type="x-tmpl-mustache">
+    <div class="container"  type="x-tmpl-mustache">
+        <h1>{{ title }}</h1>
+        <p>{{ lookup_key }}</p>
+        <p><a class="btn btn-primary btn-lg" href="{{ api_base }}/{{ type }}/{{ lookup_key }}" role="button" target="_blank">Api Call &raquo;</a></p>
+    </div>
+
+</script>
+<script type="x-tmpl-mustache" id="txSectionTpl">
+    <div class="row">
+        <div class="col-md-8">
+            <table class="table table-condensed">
+                <tr>
+                    <th>Block Hash</th>
+                    <td><a href="#" onClick="Block.getBlock('{{ block.block_hash }}', 'onBlock'); return false;">{{ block.block_hash }}</a></td>
+                </tr>
+                <tr>
+                    <th>Block Height</th>
+                    <td>{{ block.block_height }}</td>
+                </tr>
+                <tr>
+                    <th>Size</th>
+                    <td>{{ size_in_bytes }}</td>
+                </tr>
+                <tr>
+                    <th>Version</th>
+                    <td>{{ version }}</td>
+                </tr>
+            </table>
+        </div>
+
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <h1>Inputs</h1>
+            {{ ^hasInputs }}
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-default">
+                        <div class="panel-body">
+                            Coinbase
+                        </div>
+                        <div class="panel-footer">From: Issuance</div>
+                    </div>
+                </div>
+
+            </div>
+            {{ /hasInputs }}
+            {{ #inputs }}
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-info">
+                        <div class="panel-heading">
+                         <h5 class="panel-title">From: <a href="#" onclick="Tx.getByAddress('{{ address }}', 0, 'onTxs'); return false;">{{ address }}</a></h5>
+                        </div>
+                        <div class="panel-body">
+                            {{ value }} <b>{{ asset_type_cleartext }}</b>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            {{ /inputs }}
+
+        </div>
+        <div class="col-md-6">
+            <h1>Outputs</h1>
+            {{ #outputs }}
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="panel panel-success">
+                        <div class="panel-heading">
+                         <h5 class="panel-title">To: <a href="#" onclick="Tx.getByAddress('{{ address }}', 0, 'onTxs'); return false;">{{ address }}</a></h5>
+                        </div>
+                        <div class="panel-body">
+                            {{ #assets }}
+                            <h4>{{ key }}</h4>
+                            <table class="table table-condensed">
+                                {{ #asset_hash_json }}
+                                <tr>
+                                    <th>{{ key }}</th><td>{{ value }}</td>
+                                </tr>
+                                {{ /asset_hash_json }}
+                            </table>
+                            {{ /assets }}
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <hr>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    Asset Type: <b>{{ asset_type_cleartext }}</b>
+                                </div>
+                            </div>
+                            {{ #spent_by }}
+                            <div class="row">
+                                <div class="col-md-12">
+                                    Spent by: <a href="#" onClick="loadTx('{{ spent_by }}'); return false;">{{ spent_by }}</a>
+                                </div>
+                            </div>
+                            {{ /spent_by }}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            {{ /outputs }}
+        </div>
+
+    </div>
+
+</script>
+<script type="x-tmpl-mustache" id="blockSectionTpl">
+        <!-- Example row of columns -->
+    <nav aria-label="..." id="nextprevious">
+       <ul class="pager">
+            <li class="previous"><a href="#" onClick="Block.getBlockForHeight({{ block_height }} -1, 'onBlock'); return false;"><span aria-hidden="true">&larr;</span> Previous block</a></li>
+            <li class="next"><a href="#" onClick="Block.getBlockForHeight({{ block_height }} +1, 'onBlock'); return false;">Next Block<span aria-hidden="true">&rarr;</span></a></li>
+        </ul>
+    </nav>
+    <div class="row" id="blkdetails">
+            <div class="col-md-8">
+            <h2>Block details</h2>
+            <table class="table table-condensed">
+                <tr>
+                    <td>Current Depth</td><td>{{ block_height }}</td>
+                </tr>
+                <tr>
+                    <td>Merkle Root</td><td>{{ merkle_root }}</td>
+                </tr>
+                <tr>
+                    <td>Block Time</td><td>{{ block_time }}</td>
+                </tr>
+                <tr>
+                    <td>Version</td><td>{{ version }}</td>
+                </tr>
+            </table>
+            <h2>Included Transactions</h2>
+            <table class="table table-bordered">
+                {{ #txs }}
+                <tr>
+                <td><a href="#" onClick="loadTx('{{ . }}'); return false;">{{ . }}</a></td>
+                </tr>
+                {{ /txs }}
+            </table>
+        </div>
+    </div>
+
+</script>
+
+<script id="addressSectionTpl" type="x-tmpl-mustache">
+    <div class="row">
+        <div class="col-md-3">
+          <div class="jumbotron" style="background:#F4ED6B !important">
+              <h4>Gold Received</h4>
+              <h3>{{ summary.gold_received }}{{ ^summary.gold_received }}0{{ /summary.gold_received }}</h3>
+          </div>
+        </div>
+        <div class="col-md-3">
+            <div class="jumbotron" style="background:#BCEBCB !important">
+              <h4>Cash Received</h4>
+              <h3>{{ summary.cash_received }}{{ ^summary.cash_received }}0{{ /summary.cash_received }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="jumbotron" style="background:#E0A458 !important">
+              <h4>Gold Spent</h4>
+              <h3>{{ summary.gold_spent }}{{ ^summary.gold_spent }}0{{ /summary.gold_spent }}</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="jumbotron" style="background:#FFDBB5 !important">
+              <h4>Cash Spent</h4>
+              <h3>{{ summary.cash_spent }}{{ ^summary.cash_spent }}0{{ /summary.cash_spent }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8">
+        <h3>Transactions [{{ pagingInfo }}]</h3>
+        <table class="table table-bordered">
+           {{ #txs }}
+           <tr>
+            <td><a href="#" onclick="loadTx('{{ tx_hash }}');">{{ tx_hash }}</a></td>
+           </tr>
+           {{ /txs }}
+        </table>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8">
+            <nav aria-label="..." id="nextprevious">
+               <ul class="pager">
+                    <li class="previous"><a href="#" onClick="Tx.getByAddress('{{ address }}',
+                    {{ offset }} - {{ limit }}, 'onTxs'); return false;"><span aria-hidden="true">&larr;</span> Previous</a></li>
+
+                    <li class="next {{ ^hasNext }}disabled{{ /hasNext }}"><a href="#"
+                    {{ #hasNext }}onClick="Tx.getByAddress('{{ address }}', {{ offset }} + {{ limit }}, 'onTxs');
+                    return false;"{{ /hasNext }}>Next <span aria-hidden="true">&rarr;</span> </a></li>
+
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+
+</script>
+
+<script type="text/javascript">
+
+    var Tx = Tx || {};
+
+    var Block = Block || {};
+
+
+    Tx.getTx = function (tx_hex, callback) {
+        var src = '/tx/' + tx_hex + '?callback=' + callback;
+        addAndRemoveScript(src);
+    };
+
+    Tx.getByAddress = function (address, offset, callback) {
+        var offset = offset || 0;
+        if (offset < 0) {
+            offset = 0;
+        }
+        var src = '/address/' + address + '?callback=' + callback + '&offset=' + offset;
+        addAndRemoveScript(src);
+    };
+
+    Block.getBlock = function (block_hex, callback) {
+        var src = '/block/' + block_hex + '?callback=' + callback;
+        addAndRemoveScript(src);
+    };
+
+    Block.getLatestBlock = function (callback) {
+        var src = '/current-info?callback=' + callback;
+        addAndRemoveScript(src);
+    };
+
+    Block.getBlockForHeight = function (height, callback) {
+        if (height < 0) {
+            height = 0;
+        }
+        var src = '/block/height/' + height + '?callback=' + callback;
+        addAndRemoveScript(src);
+    };
+
+    function addAndRemoveScript(src) {
+        var api_base = `${window.location.protocol}//${window.location.host}/api/v1`;
+        var script_tag = document.createElement('script');
+        src = api_base + src
+        script_tag.setAttribute('src', src);
+        document.body.appendChild(script_tag);
+        document.body.removeChild(script_tag);
+    }
+</script>
+
+<script>
+    var api_base = `${window.location.protocol}//${window.location.host}/api/v1`;
+    $('#api_base').val(api_base);
+    $('#api_base_span').text(api_base);
+    var txTpl = $('#txtpl').html();
+    var blkTpl = $('#blktpl').html();
+    var mainHeadTpl = $('#mainHeadtpl').html()
+    var blockSectionTpl = $('#blockSectionTpl').html();
+    var txSectionTpl = $('#txSectionTpl').html()
+    var addressSectionTpl = $('#addressSectionTpl').html()
+    Mustache.parse(txTpl);
+    Mustache.parse(blkTpl);
+    Mustache.parse(mainHeadTpl);
+    Mustache.parse(blockSectionTpl);
+    Mustache.parse(txSectionTpl);
+    Block.getLatestBlock('onBlock');
+
+    function onBlock(block) {
+        if (block.error) {
+            return;
+        }
+        block.apiBase = window.localStorage.getItem('api_base');
+        $('#mainHead').html(Mustache.render(mainHeadTpl, {
+            "title": "Bankchain Block " + block.block_height,
+            "lookup_key": block.block_hash,
+            "block_height": block.block_height,
+            "type": "block",
+            "api_base": api_base
+        }));
+        $('#detailSection').html(Mustache.render(blockSectionTpl, block));
+    }
+
+    function loadTx(tx_hex) {
+        Tx.getTx(tx_hex, 'onTx');
+    }
+
+    function onTxs(txsPage) {
+        if (txsPage.error) {
+            return;
+        }
+        $('#mainHead').html(Mustache.render(mainHeadTpl, {
+            "title": "Bankchain address",
+            "lookup_key": txsPage.address,
+            "type": "address",
+            "api_base": api_base
+        }));
+        var pagingInfo = function () {
+            var info = "";
+            var to = this.offset + this.limit <= this.total ? this.offset + this.limit : this.total;
+            if (this.total > this.limit) {
+                info = (this.offset + 1) + ' to ' + to + ' of ' + this.total;
+            } else {
+                info = 'All';
+            }
+            //info.hasNext = to < this.total ? true : false
+            console.log({"info": info});
+            return info;
+        };
+
+        var hasNext = function () {
+            var to = this.offset + this.limit <= this.total ? this.offset + this.limit : this.total;
+            return to < this.total ? true : false;
+
+        };
+        txsPage.pagingInfo = pagingInfo;
+        txsPage.hasNext = hasNext;
+
+        $('#detailSection').html(Mustache.render(addressSectionTpl, txsPage));
+    }
+
+    function onTx(tx) {
+        if (tx.error) {
+            return;
+        }
+        tx.assets = function () {
+            var asset_list = []
+            for (var key in this.asset_set) {
+                var key_vals_list = []
+                var asset_hash_json = this.asset_set[key]['asset_hash_json'];
+                for (var k in asset_hash_json) {
+                    key_vals_list.push({"key": k, "value": asset_hash_json[k]})
+                }
+                key_vals_list.push({"key": "value", "value": this.asset_set[key]["value"]})
+                asset_list.push({"key": key, "asset_hash_json": key_vals_list})
+            }
+            return asset_list;
+        };
+        tx.hasInputs = function () {
+            return this.inputs.length > 0;
+        };
+
+        $('#mainHead').html(Mustache.render(mainHeadTpl, {
+            "title": "Bankchain Tx",
+            "lookup_key": tx.tx_hash,
+            "type": "tx",
+            "api_base": api_base
+        }));
+        $('#detailSection').html(Mustache.render(txSectionTpl, tx))
+    }
+</script>
 </body>
 </html>
